@@ -23,8 +23,8 @@ struct ContentView: View {
                     switch route {
                     case .projectBrowser(let url):
                         ProjectBrowserView(rootURL: url)
-                    case .editor:
-                        EditorContainerView()
+                    case .editor(let projectURL):
+                        EditorContainerView(projectRootURL: projectURL)
                     case .remoteBrowser(let serverId):
                         RemoteBrowserView(serverId: serverId)
                     case .sync(let config):
@@ -41,7 +41,7 @@ struct ContentView: View {
 
 enum AppRoute: Hashable {
     case projectBrowser(URL)
-    case editor
+    case editor(URL?)
     case remoteBrowser(String)
     case sync(SyncConfiguration)
     case settings

@@ -94,7 +94,7 @@ struct FileRow: View {
             } else {
                 Button {
                     NotificationCenter.default.post(name: .openLocalFile, object: file.url)
-                    appState.navigationPath.append(AppRoute.editor)
+                    appState.navigationPath.append(AppRoute.editor(viewModel.rootURL))
                 } label: {
                     Label(file.name, systemImage: file.icon)
                         .foregroundColor(.primary)
