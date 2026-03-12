@@ -4,7 +4,11 @@ struct ProjectBrowserView: View {
     let rootURL: URL
     @StateObject private var viewModel: ProjectViewModel
     @EnvironmentObject var appState: AppState
-    @EnvironmentObject var editorViewModel: EditorViewModel // Assuming we might need this or use AppRoute
+    @EnvironmentObject var editorViewModel: EditorViewModel
+
+    @State private var showNewFileAlert = false
+    @State private var showNewFolderAlert = false
+    @State private var newItemName = ""
 
     init(rootURL: URL) {
         self.rootURL = rootURL
@@ -22,12 +26,14 @@ struct ProjectBrowserView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Menu {
                     Button {
-                        // Create file logic
+                        newItemName = ""
+                        showNewFileAlert = true
                     } label: {
                         Label("New File", systemImage: "doc.badge.plus")
                     }
                     Button {
-                        // Create folder logic
+                        newItemName = ""
+                        showNewFolderAlert = true
                     } label: {
                         Label("New Folder", systemImage: "folder.badge.plus")
                     }
@@ -35,6 +41,28 @@ struct ProjectBrowserView: View {
                     Image(systemName: "plus")
                 }
             }
+        }
+        .alert("New File", isPresented: $showNewFileAlert) {
+            TextField("filename.swift", text: $newItemName)
+            Button("Create") {
+                let name = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                viewModel.createFile(name: name, in: rootURL)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a name for the new file.")
+        }
+        .alert("New Folder", isPresented: $showNewFolderAlert) {
+            TextField("FolderName", text: $newItemName)
+            Button("Create") {
+                let name = newItemName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                viewModel.createFolder(name: name, in: rootURL)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a name for the new folder.")
         }
     }
 }
@@ -65,7 +93,6 @@ struct FileRow: View {
                 )
             } else {
                 Button {
-                    // Open file
                     NotificationCenter.default.post(name: .openLocalFile, object: file.url)
                     appState.navigationPath.append(AppRoute.editor)
                 } label: {
