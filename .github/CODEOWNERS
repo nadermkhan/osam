@@ -1,0 +1,15 @@
+# Osam Code Owners
+
+# Everything - primary owner
+* @yourusername
+
+# Core services require review
+Osam/Core/Services/ @yourusername
+Osam/Core/Models/ @yourusername
+
+# Sync engine is critical
+Osam/Core/Services/SyncEngine.swift @yourusername
+Osam/Core/Services/FTPService.swift @yourusername
+
+# CI/CD changes
+.github/ @yourusername

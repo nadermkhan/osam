@@ -1,0 +1,462 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DEVELOPER_DIR: /Applications/Xcode_15.4.app/Contents/Developer
+  PROJECT_NAME: Osam
+  SCHEME: Osam
+  BUNDLE_ID: com.osam.editor
+  MINIMUM_IOS: "16.0"
+
+jobs:
+  # ──────────────────────────────────────
+  # Lint & Format Check
+  # ──────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: macos-14
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install SwiftLint
+        run: brew install swiftlint
+
+      - name: Run SwiftLint
+        run: |
+          swiftlint lint \
+            --config .swiftlint.yml \
+            --reporter github-actions-logging \
+            --strict
+
+      - name: Check for large files
+        run: |
+          echo "Checking for files larger than 1MB..."
+          find . -name "*.swift" -size +1M -print | while read f; do
+            echo "::error file=$f::File exceeds 1MB size limit"
+            exit 1
+          done
+
+      - name: Check for TODO/FIXME in PR
+        if: github.event_name == 'pull_request'
+        run: |
+          TODOS=$(grep -rn "TODO\|FIXME\|HACK\|XXX" --include="*.swift" . || true)
+          if [ -n "$TODOS" ]; then
+            echo "::warning::Found TODO/FIXME markers:"
+            echo "$TODOS"
+          fi
+
+  # ──────────────────────────────────────
+  # Build (Debug + Release)
+  # ──────────────────────────────────────
+  build:
+    name: Build (${{ matrix.configuration }})
+    runs-on: macos-14
+    timeout-minutes: 30
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+        destination:
+          - "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "${{ env.DEVELOPER_DIR }}"
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: List available simulators
+        run: xcrun simctl list devices available | grep iPhone | head -10
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-${{ matrix.configuration }}-${{ hashFiles('**/*.swift', '**/project.pbxproj') }}
+          restore-keys: |
+            deriveddata-${{ matrix.configuration }}-
+
+      - name: Cache SPM
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/org.swift.swiftpm
+            .build
+          key: spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: |
+            spm-
+
+      - name: Resolve packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project ${{ env.PROJECT_NAME }}.xcodeproj \
+            -scheme ${{ env.SCHEME }} \
+            -clonedSourcePackagesDirPath SourcePackages \
+          || true
+
+      - name: Build
+        run: |
+          set -o pipefail
+
+          xcodebuild build \
+            -project ${{ env.PROJECT_NAME }}.xcodeproj \
+            -scheme ${{ env.SCHEME }} \
+            -configuration ${{ matrix.configuration }} \
+            -destination "${{ matrix.destination }}" \
+            -clonedSourcePackagesDirPath SourcePackages \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            | xcpretty --color --report junit \
+            || exit 1
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ matrix.configuration }}
+          path: |
+            DerivedData/Logs/Build/*.xcactivitylog
+          retention-days: 7
+
+      - name: Check binary size (Release)
+        if: matrix.configuration == 'Release'
+        run: |
+          APP_PATH=$(find DerivedData -name "*.app" -type d | head -1)
+          if [ -n "$APP_PATH" ]; then
+            SIZE=$(du -sh "$APP_PATH" | awk '{print $1}')
+            echo "📦 App bundle size: $SIZE"
+            echo "### App Size: $SIZE" >> $GITHUB_STEP_SUMMARY
+
+            # Warn if over 30MB
+            SIZE_BYTES=$(du -s "$APP_PATH" | awk '{print $1}')
+            if [ "$SIZE_BYTES" -gt 30720 ]; then
+              echo "::warning::App bundle exceeds 30MB target ($SIZE)"
+            fi
+          fi
+
+  # ──────────────────────────────────────
+  # Unit Tests
+  # ──────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: macos-14
+    timeout-minutes: 30
+    needs: build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "${{ env.DEVELOPER_DIR }}"
+
+      - name: Cache DerivedData
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData
+          key: deriveddata-test-${{ hashFiles('**/*.swift', '**/project.pbxproj') }}
+          restore-keys: |
+            deriveddata-test-
+
+      - name: Boot simulator
+        run: |
+          DEVICE_ID=$(xcrun simctl list devices available | grep "iPhone 15 Pro" | grep -v unavailable | head -1 | grep -oE '[0-9A-F-]{36}')
+          if [ -n "$DEVICE_ID" ]; then
+            xcrun simctl boot "$DEVICE_ID" 2>/dev/null || true
+          fi
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+
+          xcodebuild test \
+            -project ${{ env.PROJECT_NAME }}.xcodeproj \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5" \
+            -derivedDataPath DerivedData \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            | xcpretty --color --report junit \
+            || exit 1
+
+      - name: Generate coverage report
+        if: always()
+        run: |
+          if [ -d "TestResults.xcresult" ]; then
+            xcrun xccov view --report --json TestResults.xcresult > coverage.json 2>/dev/null || true
+
+            # Extract total coverage
+            if [ -f "coverage.json" ]; then
+              COVERAGE=$(python3 -c "
+          import json
+          with open('coverage.json') as f:
+              data = json.load(f)
+          targets = data.get('targets', [])
+          for t in targets:
+              if '${{ env.SCHEME }}' in t.get('name', ''):
+                  print(f\"{t.get('lineCoverage', 0) * 100:.1f}%\")
+                  break
+          " 2>/dev/null || echo "N/A")
+              echo "### Code Coverage: $COVERAGE" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            TestResults.xcresult
+            build/reports/
+          retention-days: 14
+
+      - name: Publish test report
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: Unit Test Results
+          path: build/reports/junit.xml
+          reporter: java-junit
+          fail-on-error: true
+
+  # ──────────────────────────────────────
+  # Architecture Validation
+  # ──────────────────────────────────────
+  architecture:
+    name: Architecture Check
+    runs-on: macos-14
+    timeout-minutes: 10
+    needs: lint
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate layer boundaries
+        run: |
+          echo "Checking architecture boundaries..."
+          VIOLATIONS=0
+
+          # Views should not import Services directly
+          FOUND=$(grep -rn "import.*Services\|LocalFileManager\|FTPService\|SyncEngine\|KeychainManager" \
+            --include="*.swift" Osam/Views/ 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "::warning::Views importing services directly (should use ViewModels):"
+            echo "$FOUND"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Services should not import SwiftUI
+          FOUND=$(grep -rn "import SwiftUI" --include="*.swift" Osam/Core/Services/ 2>/dev/null || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Services importing SwiftUI:"
+            echo "$FOUND"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Models should not import UIKit or SwiftUI (except Language for Color)
+          FOUND=$(grep -rn "import UIKit\|import SwiftUI" --include="*.swift" Osam/Core/Models/ 2>/dev/null | grep -v "Language.swift" || true)
+          if [ -n "$FOUND" ]; then
+            echo "::error::Models importing UI frameworks:"
+            echo "$FOUND"
+            VIOLATIONS=$((VIOLATIONS + 1))
+          fi
+
+          # Check file sizes (no massive files)
+          find Osam/ -name "*.swift" -exec wc -l {} \; | sort -rn | head -20 | while read lines file; do
+            if [ "$lines" -gt 500 ]; then
+              echo "::warning file=$file::File has $lines lines (target < 500)"
+            fi
+          done
+
+          echo "Architecture check complete. Violations: $VIOLATIONS"
+          if [ "$VIOLATIONS" -gt 0 ]; then
+            echo "::warning::Found $VIOLATIONS architecture violations"
+          fi
+
+      - name: Count lines of code
+        run: |
+          echo "### Lines of Code" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          find Osam/ -name "*.swift" | xargs wc -l | sort -n | tail -20 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          TOTAL=$(find Osam/ -name "*.swift" | xargs wc -l | tail -1 | awk '{print $1}')
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Total: $TOTAL lines**" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify project structure
+        run: |
+          echo "Verifying expected project structure..."
+          MISSING=0
+
+          EXPECTED_DIRS=(
+            "Osam/Core/Models"
+            "Osam/Core/Services"
+            "Osam/Core/Extensions"
+            "Osam/Editor"
+            "Osam/ViewModels"
+            "Osam/Views"
+          )
+
+          for dir in "${EXPECTED_DIRS[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "::error::Missing expected directory: $dir"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          EXPECTED_FILES=(
+            "Osam/OsamApp.swift"
+            "Osam/Core/Models/ProjectFile.swift"
+            "Osam/Core/Models/ServerCredential.swift"
+            "Osam/Core/Models/SyncIndex.swift"
+            "Osam/Core/Models/SyncPlan.swift"
+            "Osam/Core/Models/Language.swift"
+            "Osam/Core/Models/EditorTab.swift"
+            "Osam/Core/Services/LocalFileManager.swift"
+            "Osam/Core/Services/FTPService.swift"
+            "Osam/Core/Services/SyncEngine.swift"
+            "Osam/Core/Services/KeychainManager.swift"
+            "Osam/Core/Services/SyntaxHighlighter.swift"
+            "Osam/Core/Services/AutocompleteEngine.swift"
+            "Osam/Core/Services/PersistenceManager.swift"
+            "Osam/Editor/CodeEditorView.swift"
+            "Osam/Editor/CodeTextView.swift"
+            "Osam/Editor/LineNumberGutter.swift"
+            "Osam/Editor/EditorToolbar.swift"
+            "Osam/ViewModels/AppState.swift"
+            "Osam/ViewModels/EditorViewModel.swift"
+            "Osam/ViewModels/ProjectViewModel.swift"
+            "Osam/ViewModels/RemoteBrowserViewModel.swift"
+            "Osam/ViewModels/SyncViewModel.swift"
+            "Osam/Views/HomeView.swift"
+            "Osam/Views/ProjectBrowserView.swift"
+            "Osam/Views/EditorContainerView.swift"
+            "Osam/Views/RemoteBrowserView.swift"
+            "Osam/Views/SyncView.swift"
+            "Osam/Views/SettingsView.swift"
+            "Osam/Views/ServerFormView.swift"
+            "Osam/Views/TabBarView.swift"
+          )
+
+          for file in "${EXPECTED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "::error::Missing expected file: $file"
+              MISSING=$((MISSING + 1))
+            fi
+          done
+
+          if [ "$MISSING" -gt 0 ]; then
+            echo "::error::$MISSING expected files/directories missing"
+            exit 1
+          fi
+
+          echo "✅ All expected files and directories present"
+
+  # ──────────────────────────────────────
+  # Performance Baseline
+  # ──────────────────────────────────────
+  performance:
+    name: Performance Check
+    runs-on: macos-14
+    timeout-minutes: 20
+    needs: build
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s "${{ env.DEVELOPER_DIR }}"
+
+      - name: Build for profiling
+        run: |
+          xcodebuild build-for-testing \
+            -project ${{ env.PROJECT_NAME }}.xcodeproj \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5" \
+            -derivedDataPath DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            ONLY_ACTIVE_ARCH=YES \
+            2>&1 | tail -5
+
+      - name: Run performance tests
+        run: |
+          set -o pipefail
+
+          xcodebuild test-without-building \
+            -project ${{ env.PROJECT_NAME }}.xcodeproj \
+            -scheme ${{ env.SCHEME }} \
+            -configuration Release \
+            -destination "platform=iOS Simulator,name=iPhone 15 Pro,OS=17.5" \
+            -derivedDataPath DerivedData \
+            -only-testing:OsamTests/PerformanceTests \
+            -resultBundlePath PerfResults.xcresult \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            2>&1 | xcpretty || true
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: PerfResults.xcresult
+          retention-days: 30
+
+  # ──────────────────────────────────────
+  # CI Summary
+  # ──────────────────────────────────────
+  ci-success:
+    name: CI Success
+    runs-on: macos-14
+    needs: [lint, build, test, architecture]
+    if: always()
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.lint.result }}" != "success" ]; then
+            echo "::error::Lint failed"
+            exit 1
+          fi
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "::error::Build failed"
+            exit 1
+          fi
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "::error::Tests failed"
+            exit 1
+          fi
+          if [ "${{ needs.architecture.result }}" != "success" ]; then
+            echo "::error::Architecture check failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

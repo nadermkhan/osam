@@ -1,0 +1,85 @@
+# Osam SwiftLint Configuration
+# Lightweight rules for a mobile code editor
+
+disabled_rules:
+  - trailing_whitespace
+  - todo
+  - line_length
+  - function_body_length
+  - type_body_length
+  - file_length
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - closure_spacing
+  - collection_alignment
+  - contains_over_filter_count
+  - contains_over_first_not_nil
+  - discouraged_assert
+  - discouraged_object_literal
+  - empty_collection_literal
+  - enum_case_associated_values_count
+  - fatal_error_message
+  - first_where
+  - force_unwrapping
+  - identical_operands
+  - joined_default_parameter
+  - last_where
+  - legacy_multiple
+  - modifier_order
+  - operator_usage_whitespace
+  - overridden_super_call
+  - prefer_self_in_static_references
+  - prefer_self_type_over_type_of_self
+  - redundant_nil_coalescing
+  - redundant_type_annotation
+  - sorted_first_last
+  - toggle_bool
+  - unneeded_parentheses_in_closure_argument
+  - yoda_condition
+
+included:
+  - Osam
+
+excluded:
+  - DerivedData
+  - .build
+  - SourcePackages
+  - Osam.xcodeproj
+
+force_cast: warning
+force_try: warning
+force_unwrapping: warning
+
+identifier_name:
+  min_length: 2
+  max_length: 60
+  excluded:
+    - id
+    - i
+    - j
+    - x
+    - y
+    - fm
+
+type_name:
+  min_length: 3
+  max_length: 50
+
+nesting:
+  type_level: 3
+  function_level: 5
+
+function_parameter_count:
+  warning: 8
+  error: 12
+
+large_tuple:
+  warning: 4
+
+cyclomatic_complexity:
+  warning: 15
+  error: 25
+
+reporter: "github-actions-logging"
