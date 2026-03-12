@@ -5,8 +5,8 @@ struct EditorTab: Identifiable, Hashable {
     let url: URL
     let name: String
     let language: Language
-    var isModified: Bool = false
-    var isRemote: Bool = false
+    var isModified = false
+    var isRemote = false
     var remotePath: String?
     var serverId: String?
 

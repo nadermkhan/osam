@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor
 final class RemoteBrowserViewModel: ObservableObject {
-    @Published var currentPath: String = "/"
+    @Published var currentPath = "/"
     @Published var files: [RemoteFileItem] = []
     @Published var isLoading = false
     @Published var isConnected = false

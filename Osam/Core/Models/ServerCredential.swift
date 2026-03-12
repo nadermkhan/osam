@@ -1,7 +1,7 @@
 import Foundation
 
 struct ServerCredential: Identifiable, Hashable, Codable {
-    var id: String = UUID().uuidString
+    var id = UUID().uuidString
     var label: String
     var host: String
     var port: Int

@@ -7,11 +7,11 @@ struct TabBarView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 0) {
                 ForEach(viewModel.tabs) { tab in
-                    TabItem(tab: tab, isActive: viewModel.activeTabId == tab.id) {
+                    TabItem(tab: tab, isActive: viewModel.activeTabId == tab.id, onSelect: {
                         viewModel.switchToTab(tab.id)
-                    } onClose: {
+                    }, onClose: {
                         viewModel.closeTab(tab.id)
-                    }
+                    })
                 }
             }
         }

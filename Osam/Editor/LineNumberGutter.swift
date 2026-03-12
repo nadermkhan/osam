@@ -2,9 +2,9 @@ import UIKit
 
 final class LineNumberGutter: UIView {
     weak var textView: UITextView?
-    var font: UIFont = .monospacedSystemFont(ofSize: 12, weight: .regular)
-    var textColor: UIColor = UIColor(red: 0.45, green: 0.48, blue: 0.52, alpha: 1)
-    var backgroundColor2: UIColor = UIColor(red: 0.13, green: 0.14, blue: 0.16, alpha: 1)
+    var font = UIFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+    var textColor = UIColor(red: 0.45, green: 0.48, blue: 0.52, alpha: 1)
+    var backgroundColor2 = UIColor(red: 0.13, green: 0.14, blue: 0.16, alpha: 1)
     var gutterWidth: CGFloat = 46
 
     override func draw(_ rect: CGRect) {

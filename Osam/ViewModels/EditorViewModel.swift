@@ -5,7 +5,7 @@ import UIKit
 final class EditorViewModel: ObservableObject {
     @Published var tabs: [EditorTab] = []
     @Published var activeTabId: String?
-    @Published var content: String = ""
+    @Published var content = ""
     @Published var showAutocomplete = false
     @Published var autocompleSuggestions: [AutocompleteEngine.Suggestion] = []
     @Published var showFindBar = false

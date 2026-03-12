@@ -2,12 +2,12 @@ import UIKit
 import SwiftUI
 
 final class CodeTextView: UITextView {
-    var language: Language = .plainText
+    var language = Language.plainText
     var onTextChange: ((String) -> Void)?
     var onCursorChange: ((Int) -> Void)?
     var syntaxHighlighter: SyntaxHighlighter?
-    var codeFont: UIFont = .monospacedSystemFont(ofSize: 14, weight: .regular)
-    var tabString: String = "    "
+    var codeFont = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
+    var tabString = "    "
 
     private let bracketPairs: [Character: Character] = [
         "(": ")", "[": "]", "{": "}", "\"": "\"", "'": "'", "`": "`"

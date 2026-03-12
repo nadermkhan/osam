@@ -31,7 +31,7 @@ struct RemoteFileItem: Identifiable {
 final class FTPService: FTPServiceProtocol {
     private var credential: ServerCredential?
     private var password: String?
-    private(set) var isConnected: Bool = false
+    private(set) var isConnected = false
 
     private var host: String { credential?.host ?? "" }
     private var port: Int { credential?.port ?? 21 }
@@ -267,6 +267,7 @@ final class FTPService: FTPServiceProtocol {
         }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     func fileInfo(path: String) async throws -> RemoteFileItem? {
         // Use MLST if available, otherwise SIZE + MDTM
         return try await withCheckedThrowingContinuation { continuation in
@@ -281,13 +282,11 @@ final class FTPService: FTPServiceProtocol {
                     if resp.code == 250 {
                         // Parse MLST response
                         let lines = resp.message.components(separatedBy: "\r\n")
-                        for line in lines {
+                        for line in lines where line.trimmingCharacters(in: .whitespaces).contains("=") {
                             let trimmed = line.trimmingCharacters(in: .whitespaces)
-                            if trimmed.contains("=") {
-                                let item = self.parseMLSDLine(trimmed, basePath: (path as NSString).deletingLastPathComponent)
-                                continuation.resume(returning: item)
-                                return
-                            }
+                            let item = self.parseMLSDLine(trimmed, basePath: (path as NSString).deletingLastPathComponent)
+                            continuation.resume(returning: item)
+                            return
                         }
                         continuation.resume(returning: nil)
                     } else {
@@ -370,7 +369,7 @@ final class FTPService: FTPServiceProtocol {
     }
 
     @discardableResult
-    private func sendCommand(_ command: String) throws -> Void {
+    private func sendCommand(_ command: String) throws {
         let cmdData = "\(command)\r\n"
         guard let data = cmdData.data(using: .utf8),
               let output = controlOutput else {
@@ -664,17 +663,17 @@ enum FTPError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .connectionFailed(let m): return "Connection failed: \(m)"
+        case .connectionFailed(let msg): return "Connection failed: \(msg)"
         case .connectionLost: return "Connection lost"
         case .authenticationFailed: return "Authentication failed"
         case .tlsFailed: return "TLS negotiation failed"
         case .timeout: return "Connection timed out"
-        case .passiveFailed(let m): return "Passive mode failed: \(m)"
-        case .listFailed(let m): return "Directory listing failed: \(m)"
-        case .downloadFailed(let m): return "Download failed: \(m)"
-        case .uploadFailed(let m): return "Upload failed: \(m)"
-        case .renameFailed(let m): return "Rename failed: \(m)"
-        case .commandFailed(let c, let m): return "\(c) failed: \(m)"
+        case .passiveFailed(let msg): return "Passive mode failed: \(msg)"
+        case .listFailed(let msg): return "Directory listing failed: \(msg)"
+        case .downloadFailed(let msg): return "Download failed: \(msg)"
+        case .uploadFailed(let msg): return "Upload failed: \(msg)"
+        case .renameFailed(let msg): return "Rename failed: \(msg)"
+        case .commandFailed(let cmd, let msg): return "\(cmd) failed: \(msg)"
         case .internalError: return "Internal error"
         }
     }

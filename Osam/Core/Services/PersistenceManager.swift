@@ -85,13 +85,13 @@ final class PersistenceManager {
 }
 
 struct AppSettings: Codable {
-    var darkMode: Bool = true
+    var darkMode = true
     var fontSize: CGFloat = 14
-    var tabWidth: Int = 4
-    var useSpacesForTabs: Bool = true
-    var showLineNumbers: Bool = true
-    var wordWrap: Bool = false
-    var autoSave: Bool = true
-    var syncDeleteConfirm: Bool = true
-    var fontName: String = "Menlo"
+    var tabWidth = 4
+    var useSpacesForTabs = true
+    var showLineNumbers = true
+    var wordWrap = false
+    var autoSave = true
+    var syncDeleteConfirm = true
+    var fontName = "Menlo"
 }

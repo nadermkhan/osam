@@ -36,7 +36,7 @@ struct SyncConflict: Identifiable {
     let remoteModified: Date
     let localSize: Int64
     let remoteSize: Int64
-    var resolution: ConflictResolution = .skip
+    var resolution = ConflictResolution.skip
 
     enum ConflictResolution {
         case keepLocal, keepRemote, duplicate, skip
@@ -57,10 +57,10 @@ struct SyncConfiguration: Hashable {
 }
 
 struct SyncProgress {
-    var phase: Phase = .idle
-    var currentFile: String = ""
-    var processedFiles: Int = 0
-    var totalFiles: Int = 0
+    var phase = Phase.idle
+    var currentFile = ""
+    var processedFiles = 0
+    var totalFiles = 0
     var bytesTransferred: Int64 = 0
 
     var fraction: Double {
