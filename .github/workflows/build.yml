@@ -1,0 +1,63 @@
+# .github/workflows/build.yml
+name: Build Unsigned IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Select Xcode
+      run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+
+    - name: Generate Project
+      run: |
+        chmod +x generate_project.sh
+        bash generate_project.sh
+
+    - name: Verify
+      run: |
+        test -f Osam.xcodeproj/project.pbxproj && echo "pbxproj OK" || exit 1
+        find Osam -name "*.swift" | sort
+
+    - name: Build
+      run: |
+        xcodebuild -project Osam.xcodeproj \
+          -scheme Osam \
+          -configuration Release \
+          -sdk iphoneos \
+          -destination 'generic/platform=iOS' \
+          -archivePath build/Osam.xcarchive \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          DEVELOPMENT_TEAM="" \
+          PROVISIONING_PROFILE="" \
+          archive
+
+    - name: Create IPA
+      run: |
+        mkdir -p build/Payload
+        cp -r build/Osam.xcarchive/Products/Applications/Osam.app build/Payload/
+        cd build && zip -r Osam.ipa Payload
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: Osam-unsigned
+        path: build/Osam.ipa
+
+    - name: Release
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v2.0.${{ github.run_number }}
+        name: Osam v2.0.${{ github.run_number }}
+        files: build/Osam.ipa
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
