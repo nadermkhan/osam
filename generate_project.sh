@@ -32,4 +32,9 @@ EOF
 
 echo "Generating Xcode project with xcodegen..."
 xcodegen generate
+
+# Downgrade project format from 77 (Xcode 16+) to 56 (Xcode 15.x compatible)
+echo "Patching project format for Xcode 15.4 compatibility..."
+sed -i '' 's/objectVersion = [0-9]*/objectVersion = 56/' Osam.xcodeproj/project.pbxproj
+
 echo "Done!"
