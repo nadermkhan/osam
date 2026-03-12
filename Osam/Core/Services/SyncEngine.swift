@@ -28,7 +28,7 @@ actor SyncEngine {
 
         // Load existing sync index
         let projectId = config.localRoot.lastPathComponent
-        var syncIndex = persistence.loadSyncIndex(projectId: projectId, serverId: config.serverId)
+        let syncIndex = persistence.loadSyncIndex(projectId: projectId, serverId: config.serverId)
             ?? SyncIndex(projectId: projectId, serverId: config.serverId,
                         localRoot: config.localRoot.path, remoteRoot: config.remoteRoot)
 
@@ -424,8 +424,8 @@ actor SyncEngine {
         var errorDescription: String? {
             switch self {
             case .cancelled: return "Sync cancelled"
-            case .scanFailed(let m): return "Scan failed: \(m)"
-            case .transferFailed(let m): return "Transfer failed: \(m)"
+            case .scanFailed(let msg): return "Scan failed: \(msg)"
+            case .transferFailed(let msg): return "Transfer failed: \(msg)"
             }
         }
     }

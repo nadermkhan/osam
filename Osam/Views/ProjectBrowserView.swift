@@ -53,10 +53,9 @@ struct FileRow: View {
                         set: { _ in viewModel.toggleFolder(file) }
                     ),
                     content: {
-                        if let children = viewModel.loadChildren(for: file) {
-                            ForEach(children) { child in
-                                FileRow(file: child, viewModel: viewModel)
-                            }
+                        let children = viewModel.loadChildren(for: file)
+                        ForEach(children) { child in
+                            FileRow(file: child, viewModel: viewModel)
                         }
                     },
                     label: {

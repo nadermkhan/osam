@@ -82,7 +82,7 @@ final class LocalFileManager {
             guard !(resources?.isDirectory ?? true) else { continue }
             let lang = Language.detect(from: fileURL.pathExtension)
             guard lang != .plainText || fileURL.pathExtension == "txt" else { continue }
-            let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
             let lines = content.components(separatedBy: .newlines)
             for (i, line) in lines.enumerated() {
                 if line.localizedCaseInsensitiveContains(query) {

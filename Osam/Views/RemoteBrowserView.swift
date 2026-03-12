@@ -66,7 +66,7 @@ struct RemoteBrowserView: View {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
                     // Sync this folder
-                    if let server = appState.servers.first(where: { $0.id == serverId }) {
+                    if appState.servers.contains(where: { $0.id == serverId }) {
                         // For simplicity, we assume we want to sync with a local project
                         // We'd normally have a way to pick the local root
                     }

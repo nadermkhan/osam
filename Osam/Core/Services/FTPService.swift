@@ -368,7 +368,6 @@ final class FTPService: FTPServiceProtocol {
         controlOutput?.setProperty(sslSettings, forKey: kCFStreamPropertySSLSettings as Stream.PropertyKey)
     }
 
-    @discardableResult
     private func sendCommand(_ command: String) throws {
         let cmdData = "\(command)\r\n"
         guard let data = cmdData.data(using: .utf8),
@@ -547,7 +546,7 @@ final class FTPService: FTPServiceProtocol {
 
     private func parseMLSDLine(_ line: String, basePath: String) -> RemoteFileItem? {
         // Format: "facts; filename"
-        guard let semiIndex = line.firstIndex(of: ";") else { return nil }
+        guard line.firstIndex(of: ";") != nil else { return nil }
 
         // Find the filename after the last "; "
         let parts = line.split(separator: " ", maxSplits: 1)
